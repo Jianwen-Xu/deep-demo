@@ -1,7 +1,7 @@
 import { tool } from 'ai';
 import { z } from 'zod';
 import { readFile as fsReadFile, writeFile as fsWriteFile, readdir, mkdir } from 'node:fs/promises';
-import { join, resolve } from 'node:path';
+import { dirname, join, resolve } from 'node:path';
 import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
 
@@ -9,7 +9,7 @@ const execFileAsync = promisify(execFile);
 
 function safePath(workspace: string, relativePath: string): string | null {
   const resolved = resolve(workspace, relativePath);
-  if (!resolved.startsWith(workspace)) {
+  if (!resolved.startsWith(workspace + '/') && resolved !== workspace) {
     return null;
   }
   return resolved;
@@ -48,7 +48,7 @@ export function createFileTools(workspace: string) {
           return { error: 'Path traversal not allowed' };
         }
         try {
-          const dir = join(fullPath, '..');
+          const dir = dirname(fullPath);
           await mkdir(dir, { recursive: true });
           await fsWriteFile(fullPath, content, 'utf-8');
           return { success: true };
