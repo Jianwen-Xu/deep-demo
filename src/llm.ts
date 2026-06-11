@@ -1,6 +1,5 @@
 import { generateText } from 'ai';
 import { createOpenAI } from '@ai-sdk/openai';
-import type { Message } from './types.js';
 
 export interface LLMConfig {
   apiKey: string;
@@ -17,6 +16,14 @@ export class LLMClient {
       baseURL: config.baseURL,
     });
     this.model = openai(config.model);
+  }
+
+  static fromEnv(): LLMClient {
+    return new LLMClient({
+      apiKey: process.env.LLM_API_KEY || '',
+      baseURL: process.env.LLM_BASE_URL || 'https://api.deepseek.com',
+      model: process.env.LLM_MODEL || 'deepseek-chat',
+    });
   }
 
   async chat(
