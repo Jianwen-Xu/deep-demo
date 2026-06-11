@@ -1,7 +1,7 @@
 import { tool } from 'ai';
 import { z } from 'zod';
 import { readFile as fsReadFile, writeFile as fsWriteFile, readdir, mkdir } from 'node:fs/promises';
-import { join, resolve, relative } from 'node:path';
+import { join, resolve } from 'node:path';
 import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
 
