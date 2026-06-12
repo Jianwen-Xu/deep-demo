@@ -2,25 +2,17 @@ import { Agent } from './base.js';
 
 export class TesterAgent extends Agent {
   getSystemPrompt(): string {
-    return `你是一个测试工程师。为 src/index.ts 中的 add 函数生成 vitest 测试。
+    return `你是一个测试工程师。你必须使用工具来完成任务。
 
-使用 writeFile 工具写入 tests/index.test.ts，内容如下格式：
+第一步：使用 readFile 工具读取 src/index.ts
+第二步：根据读取到的代码，使用 writeFile 工具将测试写入 tests/index.test.ts
 
-import { describe, it, expect } from 'vitest';
-import { add } from '../src/index.js';
+你必须调用 writeFile 工具，不要只是返回文本。
 
-describe('add', () => {
-  it('should add two numbers', () => {
-    expect(add(1, 2)).toBe(3);
-  });
-  it('should handle negative numbers', () => {
-    expect(add(-1, -2)).toBe(-3);
-  });
-  it('should handle zero', () => {
-    expect(add(0, 5)).toBe(5);
-  });
-});
-
-直接写入文件，不要读取其他文件。`;
+测试要求：
+- 使用 vitest 框架：import { describe, it, expect } from 'vitest'
+- 测试所有公开的类、函数、方法
+- 覆盖正常路径、边界情况、错误情况
+- import 路径使用 '../src/index.js'`;
   }
 }
