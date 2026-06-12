@@ -1,10 +1,10 @@
 import { Agent } from './base.js';
 
 export class TesterAgent extends Agent {
+  protected useTools = false;
+
   getSystemPrompt(): string {
     return `你是一个测试工程师。根据提供的代码生成 vitest 测试。
-
-不要使用任何工具，直接返回测试代码文本。
 
 要求：
 - 使用 vitest 框架

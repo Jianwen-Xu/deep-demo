@@ -1,12 +1,12 @@
 import { Agent } from './base.js';
 
 export class ReviewerAgent extends Agent {
+  protected useTools = false;
+
   getSystemPrompt(): string {
     return `你是一个资深的代码审查专家。
 
 你的任务是审查代码和测试的质量，并提供详细的反馈。
-
-不要使用任何工具，直接返回审查报告文本。
 
 审查维度：
 1. 代码质量和可读性

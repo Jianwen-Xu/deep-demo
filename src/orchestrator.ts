@@ -15,6 +15,10 @@ export interface OrchestratorConfig {
 
 const MAX_RETRIES = 3;
 
+function stripMarkdownCodeBlocks(text: string): string {
+  return text.replace(/^```[\w]*\n?/gm, '').replace(/```$/gm, '').trim();
+}
+
 export class Orchestrator {
   private config: OrchestratorConfig;
   private developer: DeveloperAgent;
@@ -108,11 +112,23 @@ ${requirements}`;
     this.log('Developer: done');
 
     this.log('Tester: generating tests...');
-    await this.tester.run('src/index.ts', 'tests/index.test.ts');
+    let testContent = await this.tester.run('src/index.ts', 'tests/index.test.ts');
+    testContent = stripMarkdownCodeBlocks(testContent);
+    await fs.writeFile(
+      path.join(this.config.workspace, 'tests', 'index.test.ts'),
+      testContent,
+      'utf-8'
+    );
     this.log('Tester: done');
 
     this.log('Reviewer: reviewing code...');
-    const review = await this.reviewer.run('src/index.ts', 'reviews/review.md');
+    let review = await this.reviewer.run('src/index.ts', 'reviews/review.md');
+    review = stripMarkdownCodeBlocks(review);
+    await fs.writeFile(
+      path.join(this.config.workspace, 'reviews', 'review.md'),
+      review,
+      'utf-8'
+    );
     this.log('Reviewer: done');
 
     if (review.includes('## 结论\n通过')) {

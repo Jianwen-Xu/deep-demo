@@ -9,6 +9,7 @@ export abstract class Agent {
   protected workspace: string;
   protected name: string;
   protected tools: Record<string, any>;
+  protected useTools: boolean = true;
 
   constructor(config: AgentConfig) {
     this.name = config.name;
@@ -25,7 +26,7 @@ export abstract class Agent {
     const { text, toolCalls } = await this.llm.chat(
       this.getSystemPrompt(),
       input,
-      this.tools
+      this.useTools ? this.tools : undefined
     );
 
     if (toolCalls.length === 0) {
