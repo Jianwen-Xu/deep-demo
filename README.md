@@ -1,118 +1,90 @@
-# Multi-Agent Code Development System
+# Deep-Demo
 
-# 多Agent协作开发系统
+DeepSeek 驱动的多 Agent 协作原型开发系统。输入需求，自动构建 Web 原型并启动预览。
 
-A multi-agent collaborative system that takes user requirements and automatically develops code, generates tests, and performs review.
-
-一个多Agent协作系统，接收用户需求后自动开发代码、生成测试并执行审查。
-
-## Features / 功能
-
-- **Orchestrator**: Task decomposition and agent scheduling / 任务拆解与Agent调度
-- **Developer Agent**: Generates TypeScript code from requirements / 根据需求生成TypeScript代码
-- **Tester Agent**: Generates and runs unit tests with vitest / 使用vitest生成并运行单元测试
-- **Reviewer Agent**: Reviews code quality and provides feedback / 审查代码质量并提供反馈
-- **Retry mechanism**: Auto-retry when review fails / 审查失败时自动重试（最多3次）
-
-## Tech Stack / 技术栈
-
-- TypeScript + Node.js
-- Vercel AI SDK (`ai` + `@ai-sdk/openai`)
-- Zod (schema validation)
-- Vitest (testing)
-
-## Quick Start / 快速开始
-
-### 1. Install dependencies / 安装依赖
-
-```bash
-npm install
-```
-
-### 2. Configure environment / 配置环境变量
-
-```bash
-cp .env.example .env
-```
-
-Edit `.env` with your LLM API credentials:
-
-```
-LLM_API_KEY=your-api-key
-LLM_BASE_URL=https://api.deepseek.com
-LLM_MODEL=deepseek-chat
-WORKSPACE_DIR=./workspace
-```
-
-### 3. Create requirements file / 创建需求文件
-
-```bash
-echo "Write a simple addition function that accepts two numbers and returns their sum" > requirements.md
-```
-
-### 4. Run / 运行
-
-```bash
-npx tsx src/index.ts --requirements requirements.md
-```
-
-### 5. Check output / 查看输出
-
-```bash
-cat workspace/src/index.ts          # Generated code / 生成的代码
-cat workspace/tests/index.test.ts   # Generated tests / 生成的测试
-cat workspace/reviews/review.md     # Review feedback / 审查反馈
-```
-
-## Project Structure / 项目结构
-
-```
-src/
-├── index.ts              # CLI entry point / CLI入口
-├── orchestrator.ts       # Task scheduling / 任务调度
-├── agents/
-│   ├── base.ts           # Agent base class / Agent基类
-│   ├── developer.ts      # Code generation / 代码生成
-│   ├── tester.ts         # Test generation / 测试生成
-│   └── reviewer.ts       # Code review / 代码审查
-├── llm.ts                # LLM client (Vercel AI SDK) / LLM客户端
-├── tools.ts              # File operation tools / 文件操作工具
-└── types.ts              # Type definitions / 类型定义
-```
-
-## How It Works / 工作原理
+## 架构
 
 ```
 User Requirements
        │
        ▼
 ┌─────────────┐
-│ Orchestrator │ ── Analyze & decompose / 分析拆解
+│ Orchestrator │ ── 调度 Developer → Tester → Reviewer
 └──────┬──────┘
        │
        ▼
 ┌─────────────┐
-│  Developer  │ ── Generate code / 生成代码
+│  Developer  │ ── 用 DeepSeek V4-Flash 构建原型
 └──────┬──────┘
        │
        ▼
 ┌─────────────┐
-│   Tester    │ ── Generate & run tests / 生成运行测试
+│ npm install │ ── 安装依赖
 └──────┬──────┘
        │
        ▼
 ┌─────────────┐
-│  Reviewer   │ ── Review code / 审查代码
+│ Dev Server  │ ── 启动 Vite 预览
+└──────┬──────┘
+       │
+       ▼
+┌─────────────┐
+│   Tester    │ ── 生成并运行 Playwright 测试
+└──────┬──────┘
+       │
+       ▼
+┌─────────────┐
+│  Reviewer   │ ── 审查代码质量
 └─────────────┘
 ```
 
-## Testing / 测试
+使用 DeepSeek KV Cache：三个 Agent 共享 system prompt 前缀，后续调用自动命中缓存（输入成本降至 ¥0.02/百万 token）。
+
+## 快速开始
 
 ```bash
-npm test          # Watch mode / 监听模式
-npm run test:run  # Single run / 单次运行
+# 安装
+npm install
+npx playwright install chromium
+
+# 配置
+cp .env.example .env
+# 编辑 .env 填入 LLM_API_KEY
+
+# 运行
+echo "写一个显示今日待办事项的网页，支持增删改" > requirements.md
+npx tsx src/index.ts --requirements requirements.md
 ```
 
-## License / 许可
+## 环境变量
 
-MIT
+| 变量 | 默认值 | 说明 |
+|------|--------|------|
+| `LLM_API_KEY` | — | DeepSeek API Key |
+| `LLM_BASE_URL` | `https://api.deepseek.com` | API 地址 |
+| `LLM_MODEL` | `deepseek-v4-flash` | 模型名 |
+| `WORKSPACE_DIR` | `./workspace` | 工作目录 |
+
+## 项目结构
+
+```
+src/
+├── index.ts              # CLI 入口
+├── orchestrator.ts       # 任务调度
+├── agents/
+│   ├── base.ts           # Agent 基类（含 KV cache 共享前缀）
+│   ├── developer.ts      # 原型构建
+│   ├── tester.ts         # 测试生成
+│   └── reviewer.ts       # 代码审查
+├── llm.ts                # LLM 客户端（含进度日志 + 超时保护）
+├── tools.ts              # 文件操作工具
+├── logger.ts             # 结构化日志
+└── types.ts              # 类型定义
+```
+
+## 测试
+
+```bash
+npm test          # 项目单元测试
+npm run test:run  # 单次运行
+```

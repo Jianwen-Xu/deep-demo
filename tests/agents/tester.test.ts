@@ -34,15 +34,14 @@ describe('TesterAgent', () => {
     expect(agent).toBeDefined();
   });
 
-  it('system prompt mentions vitest and writeFile', () => {
+  it('system prompt mentions playwright and writeFile', () => {
     const agent = new TesterAgent({
       name: 'tester', workspace, apiKey: 'k', baseURL: 'u', model: 'm',
     });
-    const prompt = agent.getSystemPrompt('src/index.ts', 'tests/index.test.ts');
-    expect(prompt).toContain('vitest');
+    const prompt = agent.getSystemPrompt('.', 'tests');
+    expect(prompt).toContain('@playwright/test');
     expect(prompt).toContain('writeFile');
-    expect(prompt).toContain('readFile');
-    expect(prompt).toContain('tests/index.test.ts');
+    expect(prompt).toContain('http://localhost:5173');
   });
 
   it('run() reads input and writes output', async () => {

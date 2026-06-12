@@ -1,6 +1,8 @@
 import { LLMClient } from '../llm.js';
 import { createFileTools } from '../tools.js';
 import type { AgentConfig } from '../types.js';
+import type { ToolSet } from '../tools.js';
+import type { ChatOptions } from '../llm.js';
 import fs from 'fs/promises';
 import path from 'path';
 
@@ -9,8 +11,6 @@ function extractCodeBlocks(text: string): string {
 
   const matches = [...trimmed.matchAll(/```(\w+)?\n?([\s\S]*?)```/g)];
   if (matches.length > 0) {
-    const lang = matches[0][1] || '';
-    const isLikelyCode = lang === 'typescript' || lang === 'ts' || lang === 'javascript' || lang === 'js';
     const code = matches[matches.length - 1][2].trim();
     if (code) return code;
   }
@@ -22,7 +22,7 @@ export abstract class Agent {
   protected llm: LLMClient;
   protected workspace: string;
   protected name: string;
-  protected tools: Record<string, any>;
+  protected tools: ToolSet;
 
   constructor(config: AgentConfig) {
     this.name = config.name;
@@ -33,31 +33,44 @@ export abstract class Agent {
 
   abstract getSystemPrompt(inputPath: string, outputPath: string): string;
 
+  getThinkingOptions(): ChatOptions {
+    return { thinking: { type: 'disabled' } };
+  }
+
   protected async getInputMessage(inputPath: string): Promise<string> {
+    const full = path.join(this.workspace, inputPath);
+    try {
+      const stat = await fs.stat(full);
+      if (stat.isDirectory()) {
+        return `请使用 readFile 工具读取工作目录中的文件了解内容，然后完成任务。工作目录包含：${inputPath}`;
+      }
+    } catch { }
     return `请使用 readFile 工具读取 "${inputPath}" 了解内容，然后完成任务。`;
   }
 
   async run(inputPath: string, outputPath: string): Promise<string> {
-    const { text, toolCalls } = await this.llm.chat(
-      this.getSystemPrompt(inputPath, outputPath),
+    const sharedPrefix = '你是 Deep-Demo 多Agent协作系统成员。工作目录在 ./workspace，所有文件用 writeFile 写入。\n\n';
+    const { text } = await this.llm.chat(
+      sharedPrefix + this.getSystemPrompt(inputPath, outputPath),
       await this.getInputMessage(inputPath),
-      this.tools
+      this.tools,
+      this.getThinkingOptions()
     );
 
     const outputFull = path.join(this.workspace, outputPath);
 
-    let exists = false;
     try {
-      await fs.access(outputFull);
-      exists = true;
+      const stat = await fs.stat(outputFull);
+      if (stat.isDirectory()) {
+        return text;
+      }
+      return text;
     } catch { }
 
-    if (!exists) {
-      await fs.mkdir(path.dirname(outputFull), { recursive: true });
-      const content = extractCodeBlocks(text);
-      if (content) {
-        await fs.writeFile(outputFull, content, 'utf-8');
-      }
+    await fs.mkdir(path.dirname(outputFull), { recursive: true });
+    const content = extractCodeBlocks(text);
+    if (content) {
+      await fs.writeFile(outputFull, content, 'utf-8');
     }
 
     return text;

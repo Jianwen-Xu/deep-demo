@@ -1,40 +1,52 @@
 import { Agent } from './base.js';
+import { createReadWriteTools } from '../tools.js';
+import type { AgentConfig } from '../types.js';
+import type { ToolSet } from '../tools.js';
+import type { ChatOptions } from '../llm.js';
 import fs from 'fs/promises';
 import path from 'path';
 
 export class DeveloperAgent extends Agent {
+  constructor(config: AgentConfig) {
+    super(config);
+    this.tools = createReadWriteTools(config.workspace);
+  }
+
+  getThinkingOptions(): ChatOptions {
+    return { thinking: { type: 'enabled' }, reasoningEffort: 'medium' };
+  }
+
   protected async getInputMessage(inputPath: string): Promise<string> {
     try {
       const content = await fs.readFile(path.join(this.workspace, inputPath), 'utf-8');
       if (inputPath.includes('review-feedback')) {
-        return `以下是审查反馈，请根据反馈修改代码：\n\n${content}`;
+        return `以下是审查反馈，请根据反馈修改原型：\n\n${content}`;
       }
-      return `以下是需求内容，请根据此生成代码：\n\n${content}`;
+      return `以下是需求内容，请根据此构建原型：\n\n${content}`;
     } catch (err) {
       console.error(`[Developer] Failed to read ${inputPath}:`, err instanceof Error ? err.message : String(err));
       return `请阅读文件 "${inputPath}" 了解内容，然后完成任务。`;
     }
   }
 
-  getSystemPrompt(inputPath: string, outputPath: string): string {
-    return `你是一个专业的 TypeScript 开发者。
+  getSystemPrompt(_inputPath: string, _outputPath: string): string {
+    return `你是一个全栈原型开发专家。根据需求快速构建可运行的前端 Web 原型。
 
-你的任务是生成或修改 TypeScript 代码。
+使用 React + Vite (TypeScript) 技术栈。
 
-两种情况：
-1. 如果输入是需求文档：根据需求生成完整代码
-2. 如果输入是 review 反馈：根据反馈修改代码
+必生文件清单（全部放在工作区根目录，不要用 src/ 目录）：
+1. package.json — 包含 dev（vite）、build、test（playwright test）脚本，声明所有依赖
+2. vite.config.ts — Vite 配置（含 @vitejs/plugin-react）
+3. tsconfig.json — TypeScript 配置
+4. index.html — 入口 HTML
+5. main.tsx — React 入口，渲染 <App />
+6. App.tsx — 主组件，实现完整交互功能
+7. data.ts — 数据文件（如元素数据、配置等）
+8. style.css — 全局样式，美观配色
 
 要求：
-1. 生成完整、可运行的 TypeScript 代码
-2. 遵循最佳实践和设计模式
-3. 代码要简洁、清晰、易于维护
-4. 使用类型注解确保类型安全
-5. 输出完整的文件内容，包含必要的 import 语句
-6. 使用 readFile 工具读取需求或反馈
-7. 使用 writeFile 工具将代码写入文件
-
-你可以根据需要拆分多个文件（如 src/calculator.ts、src/types.ts），所有文件放在 src/ 目录下。
-主文件是 "${outputPath}"，在其中导出所有公开 API。`;
+- 使用 writeFile 工具一次性并行写入所有文件
+- 生成美观、可交互的原型，注意视觉设计和用户体验
+- 项目要能够通过 npm install && npm run dev 直接运行`;
   }
 }

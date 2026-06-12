@@ -33,14 +33,15 @@ describe('DeveloperAgent', () => {
     expect(agent).toBeDefined();
   });
 
-  it('system prompt mentions TypeScript and writeFile', () => {
+  it('system prompt mentions frontend development and writeFile', () => {
     const agent = new DeveloperAgent({
       name: 'developer', workspace, apiKey: 'k', baseURL: 'u', model: 'm',
     });
-    const prompt = agent.getSystemPrompt('req.md', 'src/index.ts');
-    expect(prompt).toContain('TypeScript');
+    const prompt = agent.getSystemPrompt('req.md', 'package.json');
+    expect(prompt).toContain('原型');
     expect(prompt).toContain('writeFile');
-    expect(prompt).toContain('src/index.ts');
+    expect(prompt).toContain('package.json');
+    expect(prompt).toContain('Vite');
   });
 
   it('run() reads input and falls back to writing output file', async () => {

@@ -80,7 +80,7 @@ describe('Orchestrator', () => {
 
     await orch.init();
 
-    for (const dir of ['tasks', 'src', 'tests', 'reviews']) {
+    for (const dir of ['tasks', 'tests', 'reviews']) {
       const stat = await fs.stat(path.join(workspace, dir));
       expect(stat.isDirectory()).toBe(true);
     }
