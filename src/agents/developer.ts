@@ -13,6 +13,6 @@ export class DeveloperAgent extends Agent {
 4. 使用类型注解确保类型安全
 5. 输出完整的文件内容，包含必要的 import 语句
 
-使用 writeFile 工具将代码写入指定的输出路径。`;
+重要：使用 writeFile 工具将代码写入，文件路径必须是 "src/index.ts"，不要使用其他文件名。`;
   }
 }

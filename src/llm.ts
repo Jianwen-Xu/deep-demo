@@ -37,6 +37,16 @@ export class LLMClient {
       prompt: userMessage,
       tools,
     });
+
+    if (result.toolCalls.length > 0 && tools) {
+      for (const toolCall of result.toolCalls) {
+        const tool = tools[toolCall.toolName];
+        if (tool?.execute) {
+          await tool.execute(toolCall.input);
+        }
+      }
+    }
+
     return { text: result.text, toolCalls: result.toolCalls };
   }
 }

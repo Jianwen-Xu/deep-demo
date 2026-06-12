@@ -8,8 +8,9 @@ import { promisify } from 'node:util';
 const execFileAsync = promisify(execFile);
 
 function safePath(workspace: string, relativePath: string): string | null {
+  const resolvedWorkspace = resolve(workspace);
   const resolved = resolve(workspace, relativePath);
-  if (!resolved.startsWith(workspace + '/') && resolved !== workspace) {
+  if (!resolved.startsWith(resolvedWorkspace + '/') && resolved !== resolvedWorkspace) {
     return null;
   }
   return resolved;
