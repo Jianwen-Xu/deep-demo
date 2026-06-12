@@ -118,4 +118,49 @@ npm test          # 项目单元测试
 npm run test:run  # 单次运行
 ```
 
+## 运行示例
 
+以下为 "写一个显示今日待办事项的网页，支持增删改" 需求的完整运行日志（使用 `--verbose` 模式）：
+
+![运行截图](docs/screenshot.png)
+
+```
+  ⚛  Deep-Demo 多 Agent 协作开发系统
+  📄  需求: requirements.md
+  📁  工作目录: ./workspace
+  🤖  模型: deepseek-v4-flash (详细模式)
+
+[19:37:31.622] [Orchestrator] Workspace directories created
+[19:37:31.940] [Orchestrator] Pipeline run (attempt 1/4)
+[19:37:31.937] [Developer   ] Building prototype...
+[19:38:00.388] [developer   ]   Step 1/10 (28450ms) → 8 writeFile calls
+[19:38:00.389] [developer   ]     writeFile(path=package.json, ...)
+[19:38:00.389] [developer   ]     writeFile(path=vite.config.ts, ...)
+[19:38:00.389] [developer   ]     writeFile(path=tsconfig.json, ...)
+[19:38:00.389] [developer   ]     writeFile(path=index.html, ...)
+[19:38:00.389] [developer   ]     writeFile(path=data.ts, ...)
+[19:38:00.389] [developer   ]     writeFile(path=style.css, ...)
+[19:38:00.389] [developer   ]     writeFile(path=main.tsx, ...)
+[19:38:00.389] [developer   ]     writeFile(path=App.tsx, ...)
+[19:38:06.338] [developer   ]   Done in 2 steps (34400ms)
+[19:38:06.338] [Developer   ] Building prototype done (34401ms)
+[19:38:06.339] [Orchestrator] Installing dependencies...
+[19:38:10.938] [Orchestrator] Installing dependencies done (4599ms)
+[19:38:10.938] [Orchestrator] Starting dev server...
+[19:38:11.584] [Orchestrator] Preview URL: http://localhost:5173/
+[19:38:11.584] [Orchestrator] Starting dev server done (646ms)
+[19:38:11.584] [Tester      ] Generating e2e tests...
+[19:38:13.611] [tester      ]   Step 1/10 (2026ms) → 3 readFile
+[19:38:16.134] [tester      ]   Step 2/10 (2520ms) → 1 readFile
+[19:38:33.590] [tester      ]   Step 3/10 (17454ms) → 1 writeFile
+[19:38:35.198] [tester      ]   Step 4/10 (1607ms) → 1 readFile
+[19:38:41.665] [tester      ]   Done in 5 steps (30080ms)
+[19:38:41.666] [Tester      ] Generating e2e tests done (30082ms)
+[19:38:41.666] [Orchestrator] Running e2e tests...
+[19:38:56.350] [Orchestrator] Tests failed (19/22 passed)
+[19:38:56.352] [Orchestrator] Diagnosing test failure...
+[19:39:00.137] [Orchestrator]   Done in 1 step (3785ms)
+[19:39:00.137] [Orchestrator] Pipeline run (attempt 2/4)
+[19:39:00.440] [Developer   ] Fixing prototype from review feedback...
+...
+```
