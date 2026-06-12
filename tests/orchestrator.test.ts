@@ -10,7 +10,7 @@ vi.mock('../src/llm.js', () => ({
       if (tools?.writeFile?.execute) {
         await tools.writeFile.execute({ path: 'src/index.ts', content: 'mock code' });
       }
-      return 'LGTM';
+      return { text: 'LGTM', toolCalls: [] };
     });
   }),
 }));

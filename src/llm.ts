@@ -30,13 +30,13 @@ export class LLMClient {
     systemPrompt: string,
     userMessage: string,
     tools?: Record<string, any>
-  ): Promise<string> {
+  ): Promise<{ text: string; toolCalls: any[] }> {
     const result = await generateText({
       model: this.model,
       system: systemPrompt,
       prompt: userMessage,
       tools,
     });
-    return result.text;
+    return { text: result.text, toolCalls: result.toolCalls };
   }
 }
