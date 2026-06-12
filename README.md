@@ -2,6 +2,8 @@
 
 DeepSeek 驱动的多 Agent 协作原型开发系统。输入需求，自动构建 Web 原型、生成 E2E 测试并启动预览。
 
+> 本项目所有代码全部使用 [opencode](https://opencode.ai) + DeepSeek 实现。
+
 ## 架构
 
 ```
