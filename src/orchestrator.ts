@@ -3,6 +3,7 @@ import path from 'path';
 import { DeveloperAgent } from './agents/developer.js';
 import { TesterAgent } from './agents/tester.js';
 import { ReviewerAgent } from './agents/reviewer.js';
+import { LLMClient } from './llm.js';
 import type { AgentConfig } from './types.js';
 
 export interface OrchestratorConfig {
@@ -19,6 +20,7 @@ export class Orchestrator {
   private developer: DeveloperAgent;
   private tester: TesterAgent;
   private reviewer: ReviewerAgent;
+  private llm: LLMClient;
 
   constructor(config: OrchestratorConfig) {
     this.config = config;
@@ -28,6 +30,7 @@ export class Orchestrator {
       name: 'orchestrator',
     };
 
+    this.llm = new LLMClient(config);
     this.developer = new DeveloperAgent({ ...agentConfig, name: 'developer' });
     this.tester = new TesterAgent({ ...agentConfig, name: 'tester' });
     this.reviewer = new ReviewerAgent({ ...agentConfig, name: 'reviewer' });
@@ -47,14 +50,61 @@ export class Orchestrator {
     await fs.copyFile(requirementsPath, destPath);
     this.log('Requirements copied to workspace');
 
-    await this.runPipeline(0);
+    await this.decomposeTasks();
+    await this.runPipeline(0, '');
   }
 
-  private async runPipeline(retryCount: number): Promise<void> {
+  private async decomposeTasks(): Promise<void> {
+    this.log('Analyzing requirements and decomposing tasks...');
+    const requirements = await fs.readFile(
+      path.join(this.config.workspace, 'requirements.md'),
+      'utf-8'
+    );
+
+    const prompt = `你是一个项目管理专家。分析以下需求，将其拆分为可执行的开发任务。
+
+需求：
+${requirements}
+
+输出格式（每个任务一行）：
+任务1: [任务描述]
+任务2: [任务描述]
+...
+
+要求：
+- 每个任务应该是独立的、可测试的功能点
+- 任务之间有明确的依赖关系
+- 保持简洁，3-5个任务为宜`;
+
+    const result = await this.llm.chat(prompt, '请分析并拆分任务。');
+    const tasksContent = `# 任务分解
+
+${result.text}
+
+# 原始需求
+${requirements}`;
+
+    await fs.writeFile(
+      path.join(this.config.workspace, 'tasks', '00-task-decomposition.md'),
+      tasksContent,
+      'utf-8'
+    );
+    this.log('Task decomposition written to tasks/');
+  }
+
+  private async runPipeline(retryCount: number, reviewFeedback: string): Promise<void> {
     this.log(`Pipeline run (attempt ${retryCount + 1}/${MAX_RETRIES + 1})`);
 
-    this.log('Developer: generating code...');
-    await this.developer.run('requirements.md', 'src/index.ts');
+    let devInput = 'requirements.md';
+    if (reviewFeedback) {
+      const feedbackPath = path.join(this.config.workspace, 'tasks', 'review-feedback.md');
+      await fs.writeFile(feedbackPath, reviewFeedback, 'utf-8');
+      devInput = 'tasks/review-feedback.md';
+      this.log(`Developer: reviewing feedback and fixing code...`);
+    } else {
+      this.log('Developer: generating code...');
+    }
+    await this.developer.run(devInput, 'src/index.ts');
     this.log('Developer: done');
 
     this.log('Tester: generating tests...');
@@ -69,7 +119,7 @@ export class Orchestrator {
       this.log('Pipeline completed successfully');
     } else if (retryCount < MAX_RETRIES) {
       this.log(`Review requires changes, retrying (${retryCount + 1}/${MAX_RETRIES})...`);
-      await this.runPipeline(retryCount + 1);
+      await this.runPipeline(retryCount + 1, review);
     } else {
       this.log('Max retries reached. Pipeline completed with unresolved issues.');
     }

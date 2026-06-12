@@ -4,7 +4,11 @@ export class DeveloperAgent extends Agent {
   getSystemPrompt(): string {
     return `你是一个专业的 TypeScript 开发者。
 
-你的任务是根据任务描述生成高质量的 TypeScript 代码。
+你的任务是生成或修改 TypeScript 代码。
+
+两种情况：
+1. 如果输入是需求文档：根据需求生成完整代码
+2. 如果输入是 review 反馈：先用 readFile 读取 src/index.ts，根据反馈修改代码
 
 要求：
 1. 生成完整、可运行的 TypeScript 代码
