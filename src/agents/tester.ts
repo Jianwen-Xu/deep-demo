@@ -1,9 +1,7 @@
 import { Agent } from './base.js';
 
 export class TesterAgent extends Agent {
-  protected useTools = false;
-
-  getSystemPrompt(): string {
+  getSystemPrompt(inputPath: string, outputPath: string): string {
     return `你是一个测试工程师。根据提供的代码生成 vitest 测试。
 
 要求：
@@ -11,6 +9,9 @@ export class TesterAgent extends Agent {
 - 测试所有公开的类、函数、方法
 - 覆盖正常路径、边界情况、错误情况
 - import 路径使用 '../src/index.js'
-- 只返回测试代码，不要包含其他说明`;
+- 使用 readFile 工具读取源码
+- 使用 writeFile 工具将测试代码写入 "${outputPath}"
+- 如果 writeFile 工具不可用，将测试代码输出在代码块中
+- 不要包含其他说明文字`;
   }
 }

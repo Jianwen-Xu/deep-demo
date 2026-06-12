@@ -1,5 +1,6 @@
-import { generateText } from 'ai';
+import { generateText, stepCountIs } from 'ai';
 import { createOpenAICompatible } from '@ai-sdk/openai-compatible';
+import { Logger } from './logger.js';
 
 export interface LLMConfig {
   apiKey: string;
@@ -7,23 +8,24 @@ export interface LLMConfig {
   model: string;
 }
 
+const MAX_RETRIES = 3;
+const MAX_STEPS = 5;
+
+function sleep(ms: number): Promise<void> {
+  return new Promise(resolve => setTimeout(resolve, ms));
+}
+
 export class LLMClient {
   private model;
+  private logger = new Logger();
 
   constructor(config: LLMConfig) {
     const openai = createOpenAICompatible({
+      name: 'openai-compatible',
       apiKey: config.apiKey,
       baseURL: config.baseURL,
     });
     this.model = openai(config.model);
-  }
-
-  static fromEnv(): LLMClient {
-    return new LLMClient({
-      apiKey: process.env.LLM_API_KEY || '',
-      baseURL: process.env.LLM_BASE_URL || 'https://api.deepseek.com',
-      model: process.env.LLM_MODEL || 'deepseek-chat',
-    });
   }
 
   async chat(
@@ -31,22 +33,30 @@ export class LLMClient {
     userMessage: string,
     tools?: Record<string, any>
   ): Promise<{ text: string; toolCalls: any[] }> {
-    const result = await generateText({
-      model: this.model,
-      system: systemPrompt,
-      prompt: userMessage,
-      tools,
-    });
+    let lastError: Error | null = null;
 
-    if (result.toolCalls.length > 0 && tools) {
-      for (const toolCall of result.toolCalls) {
-        const tool = tools[toolCall.toolName];
-        if (tool?.execute) {
-          await tool.execute(toolCall.input);
+    for (let attempt = 0; attempt < MAX_RETRIES; attempt++) {
+      try {
+        const result = await generateText({
+          model: this.model,
+          system: systemPrompt,
+          prompt: userMessage,
+          tools,
+          stopWhen: stepCountIs(MAX_STEPS),
+        });
+
+        return { text: result.text, toolCalls: result.toolCalls };
+      } catch (err) {
+        const message = err instanceof Error ? err.message : String(err);
+        lastError = err instanceof Error ? err : new Error(String(err));
+        const delay = Math.min(1000 * Math.pow(2, attempt), 10000);
+        this.logger.log('LLM', `API call failed (attempt ${attempt + 1}/${MAX_RETRIES}), retrying in ${delay}ms: ${message}`);
+        if (attempt < MAX_RETRIES - 1) {
+          await sleep(delay);
         }
       }
     }
 
-    return { text: result.text, toolCalls: result.toolCalls };
+    throw lastError;
   }
 }

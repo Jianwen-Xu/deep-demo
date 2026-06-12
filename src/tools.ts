@@ -1,19 +1,21 @@
 import { tool } from 'ai';
 import { z } from 'zod';
-import { readFile as fsReadFile, writeFile as fsWriteFile, readdir, mkdir } from 'node:fs/promises';
+import { readFile as fsReadFile, writeFile as fsWriteFile, readdir, mkdir, realpath } from 'node:fs/promises';
 import { dirname, join, resolve } from 'node:path';
 import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
+import { validateCommand } from './command-whitelist.js';
 
 const execFileAsync = promisify(execFile);
 
-function safePath(workspace: string, relativePath: string): string | null {
-  const resolvedWorkspace = resolve(workspace);
-  const resolved = resolve(workspace, relativePath);
-  if (!resolved.startsWith(resolvedWorkspace + '/') && resolved !== resolvedWorkspace) {
+async function safePath(workspace: string, relativePath: string): Promise<string | null> {
+  const resolvedWorkspace = await realpath(workspace);
+  const resolved = await realpath(resolve(workspace, relativePath)).catch(() => resolve(workspace, relativePath));
+  const resolvedStr = resolved.toString();
+  if (!resolvedStr.startsWith(resolvedWorkspace + '/') && resolvedStr !== resolvedWorkspace) {
     return null;
   }
-  return resolved;
+  return resolvedStr;
 }
 
 export function createFileTools(workspace: string) {
@@ -24,7 +26,7 @@ export function createFileTools(workspace: string) {
         path: z.string().describe('Relative path to the file within the workspace'),
       }),
       execute: async ({ path }) => {
-        const fullPath = safePath(workspace, path);
+        const fullPath = await safePath(workspace, path);
         if (!fullPath) {
           return { error: 'Path traversal not allowed' };
         }
@@ -44,7 +46,7 @@ export function createFileTools(workspace: string) {
         content: z.string().describe('Content to write to the file'),
       }),
       execute: async ({ path, content }) => {
-        const fullPath = safePath(workspace, path);
+        const fullPath = await safePath(workspace, path);
         if (!fullPath) {
           return { error: 'Path traversal not allowed' };
         }
@@ -65,7 +67,7 @@ export function createFileTools(workspace: string) {
         path: z.string().describe('Relative directory path within the workspace'),
       }),
       execute: async ({ path }) => {
-        const fullPath = safePath(workspace, path);
+        const fullPath = await safePath(workspace, path);
         if (!fullPath) {
           return { error: 'Path traversal not allowed' };
         }
@@ -84,6 +86,10 @@ export function createFileTools(workspace: string) {
         command: z.string().describe('Shell command to execute'),
       }),
       execute: async ({ command }) => {
+        const validation = validateCommand(command);
+        if (!validation.valid) {
+          return { stdout: '', stderr: validation.reason, exitCode: 1 };
+        }
         try {
           const { stdout, stderr } = await execFileAsync('bash', ['-c', command], {
             cwd: workspace,

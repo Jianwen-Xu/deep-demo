@@ -8,9 +8,11 @@ vi.mock('../src/llm.js', () => ({
   LLMClient: vi.fn().mockImplementation(function () {
     this.chat = vi.fn().mockImplementation(async (_system: string, _user: string, tools?: Record<string, any>) => {
       if (tools?.writeFile?.execute) {
-        await tools.writeFile.execute({ path: 'src/index.ts', content: 'mock code' });
+        await tools.writeFile.execute({ path: 'src/index.ts', content: 'export const add = (a: number, b: number) => a + b;' });
+        await tools.writeFile.execute({ path: 'tests/index.test.ts', content: 'import { describe, it, expect } from "vitest";' });
+        await tools.writeFile.execute({ path: 'reviews/review.md', content: '## 结论\n代码质量良好，通过' });
       }
-      return { text: 'LGTM', toolCalls: [] };
+      return { text: 'mock output', toolCalls: [] };
     });
   }),
 }));

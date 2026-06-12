@@ -1,9 +1,7 @@
 import { Agent } from './base.js';
 
 export class ReviewerAgent extends Agent {
-  protected useTools = false;
-
-  getSystemPrompt(): string {
+  getSystemPrompt(inputPath: string, outputPath: string): string {
     return `你是一个资深的代码审查专家。
 
 你的任务是审查代码和测试的质量，并提供详细的反馈。
@@ -15,7 +13,12 @@ export class ReviewerAgent extends Agent {
 4. 潜在的bug和边界情况
 5. 性能和安全性考虑
 
-输出格式（严格遵循）：
+步骤：
+1. 使用 readFile 读取 "${inputPath}" 了解代码
+2. 使用 readFile 读取 tests/index.test.ts 了解测试
+3. 使用 writeFile 将审查报告写入 "${outputPath}"
+
+ 输出格式：
 ## Review 摘要
 [总体评价]
 
@@ -26,10 +29,8 @@ export class ReviewerAgent extends Agent {
 - 改进建议
 
 ## 结论
-必须以以下两种格式之一输出：
-- 代码通过：## 结论\n通过
-- 代码需修改：## 结论\n需修改 [具体原因]
-
-注意：结论部分必须严格包含"通过"或"需修改"，不要使用其他表述。`;
+一行，以"通过"或"需修改"开头。
+示例：通过 代码质量良好
+示例：需修改 类型定义缺失`;
   }
 }

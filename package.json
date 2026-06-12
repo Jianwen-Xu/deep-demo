@@ -13,7 +13,6 @@
   "author": "",
   "license": "ISC",
   "dependencies": {
-    "@ai-sdk/openai": "^3.0.70",
     "@ai-sdk/openai-compatible": "^2.0.49",
     "ai": "^6.0.202",
     "dotenv": "^17.4.2",

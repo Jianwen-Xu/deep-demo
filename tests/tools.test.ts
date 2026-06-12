@@ -138,11 +138,28 @@ describe('createFileTools', () => {
     it('captures stderr on error', async () => {
       const tools = createFileTools(workspace);
       const result = await tools.executeCommand.execute!({
-        command: 'echo errormsg >&2 && exit 1',
+        command: 'echo errormsg >&2; exit 1',
       });
 
       expect(result.exitCode).toBe(1);
       expect(result.stderr).toContain('errormsg');
+    });
+  });
+
+  describe('command whitelist', () => {
+    it('rejects disallowed command', async () => {
+      const tools = createFileTools(workspace);
+      const result = await tools.executeCommand.execute!({ command: 'sudo rm -rf /' });
+
+      expect(result.exitCode).toBe(1);
+      expect(result.stderr).toContain('not in the allowed list');
+    });
+
+    it('rejects empty command', async () => {
+      const tools = createFileTools(workspace);
+      const result = await tools.executeCommand.execute!({ command: '' });
+
+      expect(result.exitCode).toBe(1);
     });
   });
 

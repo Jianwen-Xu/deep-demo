@@ -1,5 +1,7 @@
 node_modules/
 dist/
 .env
+.venv
 workspace/
 *.log
+*.bak

@@ -35,4 +35,7 @@ async function main() {
   console.log('完成！请查看工作目录中的输出。');
 }
 
-main().catch(console.error);
+main().catch((err) => {
+  console.error(err);
+  process.exitCode = 1;
+});
