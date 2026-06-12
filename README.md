@@ -115,4 +115,4 @@ npm run test:run  # Single run / 单次运行
 
 ## License / 许可
 
-ISC
+MIT
