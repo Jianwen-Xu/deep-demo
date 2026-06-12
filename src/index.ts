@@ -29,6 +29,7 @@ async function main() {
   console.log(`需求文件: ${requirementsFile}`);
   console.log(`工作目录: ${config.workspace}`);
 
+  await orch.init();
   await orch.run(path.resolve(requirementsFile));
 
   console.log('完成！请查看工作目录中的输出。');

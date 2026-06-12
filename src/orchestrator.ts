@@ -65,13 +65,13 @@ export class Orchestrator {
     const review = await this.reviewer.run('src/index.ts', 'reviews/review.md');
     this.log('Reviewer: done');
 
-    if (review.includes('需修改') && retryCount < MAX_RETRIES) {
+    if (review.includes('## 结论\n通过')) {
+      this.log('Pipeline completed successfully');
+    } else if (retryCount < MAX_RETRIES) {
       this.log(`Review requires changes, retrying (${retryCount + 1}/${MAX_RETRIES})...`);
       await this.runPipeline(retryCount + 1);
-    } else if (review.includes('需修改')) {
-      this.log('Max retries reached. Pipeline completed with unresolved issues.');
     } else {
-      this.log('Pipeline completed successfully');
+      this.log('Max retries reached. Pipeline completed with unresolved issues.');
     }
   }
 

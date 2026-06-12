@@ -19,7 +19,7 @@ export abstract class Agent {
 
   abstract getSystemPrompt(): string;
 
-  async run(inputPath: string, outputPath: string): Promise<string> {
+  async run(inputPath: string, _outputPath: string): Promise<string> {
     const input = await fs.readFile(path.join(this.workspace, inputPath), 'utf-8');
 
     const output = await this.llm.chat(
@@ -27,10 +27,6 @@ export abstract class Agent {
       input,
       this.tools
     );
-
-    const outputFull = path.join(this.workspace, outputPath);
-    await fs.mkdir(path.dirname(outputFull), { recursive: true });
-    await fs.writeFile(outputFull, output, 'utf-8');
 
     return output;
   }
