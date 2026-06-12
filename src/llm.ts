@@ -1,5 +1,5 @@
 import { generateText } from 'ai';
-import { createOpenAI } from '@ai-sdk/openai';
+import { createOpenAICompatible } from '@ai-sdk/openai-compatible';
 
 export interface LLMConfig {
   apiKey: string;
@@ -11,7 +11,7 @@ export class LLMClient {
   private model;
 
   constructor(config: LLMConfig) {
-    const openai = createOpenAI({
+    const openai = createOpenAICompatible({
       apiKey: config.apiKey,
       baseURL: config.baseURL,
     });
