@@ -4,4 +4,5 @@ export interface AgentConfig {
   apiKey: string;
   baseURL: string;
   model: string;
+  verbose?: boolean;
 }

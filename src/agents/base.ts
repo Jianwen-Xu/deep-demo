@@ -23,10 +23,12 @@ export abstract class Agent {
   protected workspace: string;
   protected name: string;
   protected tools: ToolSet;
+  protected verbose: boolean;
 
   constructor(config: AgentConfig) {
     this.name = config.name;
     this.workspace = config.workspace;
+    this.verbose = config.verbose || false;
     this.llm = new LLMClient(config);
     this.tools = createFileTools(config.workspace);
   }
@@ -50,11 +52,16 @@ export abstract class Agent {
 
   async run(inputPath: string, outputPath: string): Promise<string> {
     const sharedPrefix = '你是 Deep-Demo 多Agent协作系统成员。工作目录在 ./workspace，所有文件用 writeFile 写入。\n\n';
+    const chatOptions = {
+      ...this.getThinkingOptions(),
+      agentName: this.name,
+      verbose: this.verbose,
+    };
     const { text } = await this.llm.chat(
       sharedPrefix + this.getSystemPrompt(inputPath, outputPath),
       await this.getInputMessage(inputPath),
       this.tools,
-      this.getThinkingOptions()
+      chatOptions
     );
 
     const outputFull = path.join(this.workspace, outputPath);

@@ -11,6 +11,8 @@ export interface LLMConfig {
 export interface ChatOptions {
   thinking?: { type: 'enabled' | 'disabled' };
   reasoningEffort?: string;
+  agentName?: string;
+  verbose?: boolean;
 }
 
 const MAX_RETRIES = 3;
@@ -36,25 +38,48 @@ export class LLMClient {
     tools?: ToolSet,
     options?: ChatOptions
   ): Promise<{ text: string }> {
+    const name = options?.agentName || 'LLM';
+    const verbose = options?.verbose || false;
     const messages: any[] = [
       { role: 'system', content: systemPrompt },
       { role: 'user', content: userMessage },
     ];
     const toolDefs = tools?.definitions;
     const executors = tools?.executors;
+    const stepStart = Date.now();
 
     for (let step = 1; step <= MAX_STEPS; step++) {
+      const apiStart = Date.now();
       const response = await this.callAPI(messages, toolDefs, options);
+      const apiElapsed = Date.now() - apiStart;
       const message = response.choices[0].message;
       messages.push(message);
 
       if (!message.tool_calls?.length) {
-        this.logger.log('LLM', `Done in ${step} step${step > 1 ? 's' : ''}`);
+        const totalElapsed = Date.now() - stepStart;
+        this.logger.sub(name, `Done in ${step} step${step > 1 ? 's' : ''} (${totalElapsed}ms)`);
         return { text: message.content || '' };
       }
 
       const names = message.tool_calls.map((tc: any) => tc.function.name).join(', ');
-      this.logger.log('LLM', `Step ${step}/${MAX_STEPS} → tools: ${names}`);
+      this.logger.sub(name, `Step ${step}/${MAX_STEPS} (${apiElapsed}ms) → ${message.tool_calls.length} ${names}`);
+
+      if (verbose) {
+        for (const tc of message.tool_calls) {
+          try {
+            const args = JSON.parse(tc.function.arguments);
+            const summary = Object.entries(args)
+              .map(([k, v]) => {
+                const s = String(v);
+                return `${k}=${s.length > 60 ? s.slice(0, 60) + '...' : s}`;
+              })
+              .join(', ');
+            this.logger.detail(name, `${tc.function.name}(${summary})`);
+          } catch {
+            this.logger.detail(name, `${tc.function.name}(...)`);
+          }
+        }
+      }
 
       for (const toolCall of message.tool_calls) {
         const fn = toolCall.function;
@@ -78,7 +103,12 @@ export class LLMClient {
           });
           continue;
         }
+        const execStart = Date.now();
         const result = await exec(args);
+        const execElapsed = Date.now() - execStart;
+        if (verbose) {
+          this.logger.detail(name, `↳ ${fn.name} done (${execElapsed}ms)`);
+        }
         messages.push({
           role: 'tool',
           tool_call_id: toolCall.id,
@@ -88,7 +118,7 @@ export class LLMClient {
     }
 
     const last = [...messages].reverse().find(m => m.role === 'assistant');
-    this.logger.log('LLM', `Max steps (${MAX_STEPS}) reached, returning last response`);
+    this.logger.sub(name, `Max steps (${MAX_STEPS}) reached, returning last response`);
     return { text: last?.content || '' };
   }
 
@@ -125,7 +155,7 @@ export class LLMClient {
         lastError = err;
         const msg = err.message || String(err);
         const delay = Math.min(1000 * Math.pow(2, attempt), 10000);
-        this.logger.log('LLM', `API call failed (attempt ${attempt + 1}/${MAX_RETRIES}), retrying in ${delay}ms: ${msg}`);
+        this.logger.sub(options?.agentName || 'LLM', `API call failed (attempt ${attempt + 1}/${MAX_RETRIES}), retrying in ${delay}ms: ${msg}`);
         if (attempt < MAX_RETRIES - 1) {
           await new Promise(r => setTimeout(r, delay));
         }

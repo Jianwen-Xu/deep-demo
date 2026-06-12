@@ -117,3 +117,53 @@ src/
 npm test          # 项目单元测试
 npm run test:run  # 单次运行
 ```
+
+## 运行示例
+
+以元素周期表需求为例（`requirements.md`），首次运行一次性通过：
+
+![运行截图](docs/screenshot.png)
+
+```
+  ⚛  Deep-Demo 多 Agent 协作开发系统
+  📄  需求: requirements.md
+  📁  工作目录: ./workspace
+  🤖  模型: deepseek-v4-flash
+
+[19:25:03.934] [Orchestrator] Workspace directories created
+[19:25:03.938] [Orchestrator] Requirements copied to workspace
+[19:25:03.938] [Orchestrator] Task decomposition integrated into Developer prompt
+[19:25:03.940] [Orchestrator] Pipeline run (attempt 1/4)
+[19:25:04.241] [Developer   ] Building prototype...
+[19:25:41.126] [developer   ]   Step 1/10 (36883ms) → 8 writeFile calls
+[19:25:45.974] [developer   ]   Done in 2 steps (41731ms)
+[19:25:45.975] [Developer   ] Building prototype done (41734ms)
+[19:25:45.975] [Orchestrator] Installing dependencies...
+[19:25:54.887] [Orchestrator] Installing dependencies done (8912ms)
+[19:25:54.887] [Orchestrator] Starting dev server...
+[19:25:55.496] [Orchestrator] Preview URL: http://localhost:5173/
+[19:25:55.496] [Orchestrator] Starting dev server done (609ms)
+[19:25:55.496] [Tester      ] Generating e2e tests...
+[19:25:57.168] [tester      ]   Step 1/10 (1672ms) → 2 readFile
+[19:25:58.522] [tester      ]   Step 2/10 (1352ms) → 1 readFile
+[19:26:00.020] [tester      ]   Step 3/10 (1497ms) → 1 readFile
+[19:26:21.294] [tester      ]   Step 4/10 (21273ms) → 2 writeFile
+[19:26:22.777] [tester      ]   Step 5/10 (1479ms) → 2 readFile
+[19:26:26.705] [tester      ]   Done in 6 steps (31209ms)
+[19:26:26.706] [Tester      ] Generating e2e tests done (31210ms)
+[19:26:26.706] [Orchestrator] Running e2e tests...
+[19:26:36.993] [Orchestrator] Running e2e tests done (10287ms)
+[19:26:36.993] [Reviewer    ] Reviewing prototype...
+[19:26:38.693] [reviewer    ]   Step 1/10 (1700ms) → 1 listFiles
+[19:26:40.928] [reviewer    ]   Step 2/10 (2234ms) → 6 readFile
+[19:26:42.526] [reviewer    ]   Step 3/10 (1593ms) → 2 listFiles
+[19:26:44.520] [reviewer    ]   Step 4/10 (1992ms) → 5 readFile
+[19:27:11.594] [reviewer    ]   Step 5/10 (27069ms) → 1 writeFile
+[19:27:15.809] [reviewer    ]   Done in 6 steps (38816ms)
+[19:27:15.810] [Reviewer    ] Reviewing prototype done (38817ms)
+[19:27:15.810] [Orchestrator] Pipeline completed successfully
+[19:27:15.810] [Orchestrator] 原型预览地址: http://localhost:5173/
+[19:27:15.810] [Orchestrator] 开发服务器将在 300 秒后自动停止
+
+  ✅ 完成！请查看工作目录中的输出。
+```

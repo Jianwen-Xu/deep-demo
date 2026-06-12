@@ -16,6 +16,7 @@ export interface OrchestratorConfig {
   apiKey: string;
   baseURL: string;
   model: string;
+  verbose?: boolean;
 }
 
 const sleep = (ms: number) => new Promise(r => setTimeout(r, ms));
@@ -47,6 +48,10 @@ export class Orchestrator {
     this.developer = new DeveloperAgent({ ...agentConfig, name: 'developer' });
     this.tester = new TesterAgent({ ...agentConfig, name: 'tester' });
     this.reviewer = new ReviewerAgent({ ...agentConfig, name: 'reviewer' });
+  }
+
+  private get verbose(): boolean {
+    return this.config.verbose || false;
   }
 
   async init(): Promise<void> {
@@ -324,7 +329,10 @@ ${fileTree}
 {"reason": "诊断理由（中文，简洁）", "action": "retry_dev", "feedback": "给 Developer 的具体修复指导（中文，简洁）"}`;
 
     this.logger.start('Orchestrator', 'Diagnosing test failure');
-    const result = await this.diagnosticClient.chat(prompt, 'Diagnose test failure');
+    const result = await this.diagnosticClient.chat(prompt, 'Diagnose test failure', undefined, {
+      agentName: 'Orchestrator',
+      verbose: this.verbose,
+    });
     this.logger.end('Orchestrator', 'Diagnosing test failure');
 
     try {
