@@ -3,5 +3,6 @@ dist/
 .env
 .venv
 workspace/
+test-results/
 *.log
 *.bak
