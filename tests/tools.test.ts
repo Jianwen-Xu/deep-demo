@@ -2,7 +2,7 @@ import { describe, it, expect, beforeAll, afterAll, beforeEach } from 'vitest';
 import { mkdtemp, rm, writeFile, readFile, mkdir } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { createFileTools } from '../src/tools.js';
+import { createFileTools, createReadWriteTools, createReadTools } from '../src/tools.js';
 
 describe('createFileTools', () => {
   let workspace: string;
@@ -16,11 +16,24 @@ describe('createFileTools', () => {
   });
 
   beforeEach(async () => {
-    const entries = (await import('node:fs/promises')).readdir(workspace);
-    for (const entry of await entries) {
+    const dirs = await readdirSafe(workspace);
+    for (const entry of dirs) {
       await rm(join(workspace, entry), { recursive: true, force: true });
     }
   });
+
+  const readdirSafe = async (dir: string) => {
+    try {
+      return await readdir(dir);
+    } catch {
+      return [];
+    }
+  };
+
+  const readdir = async (dir: string) => {
+    const { readdir: rd } = await import('node:fs/promises');
+    return rd(dir);
+  };
 
   describe('readFile', () => {
     it('reads file content', async () => {
@@ -28,21 +41,21 @@ describe('createFileTools', () => {
       await writeFile(testFile, 'hello world');
 
       const tools = createFileTools(workspace);
-      const result = await tools.readFile.execute!({ path: 'test.txt' });
+      const result = await tools.executors.readFile({ path: 'test.txt' });
 
       expect(result).toEqual({ content: 'hello world' });
     });
 
     it('returns error for non-existent file', async () => {
       const tools = createFileTools(workspace);
-      const result = await tools.readFile.execute!({ path: 'missing.txt' });
+      const result = await tools.executors.readFile({ path: 'missing.txt' });
 
       expect(result).toHaveProperty('error');
     });
 
     it('rejects path traversal', async () => {
       const tools = createFileTools(workspace);
-      const result = await tools.readFile.execute!({ path: '../etc/passwd' });
+      const result = await tools.executors.readFile({ path: '../etc/passwd' });
 
       expect(result).toHaveProperty('error');
     });
@@ -51,7 +64,7 @@ describe('createFileTools', () => {
   describe('writeFile', () => {
     it('writes file content', async () => {
       const tools = createFileTools(workspace);
-      const result = await tools.writeFile.execute!({
+      const result = await tools.executors.writeFile({
         path: 'output.txt',
         content: 'new content',
       });
@@ -63,7 +76,7 @@ describe('createFileTools', () => {
 
     it('creates intermediate directories', async () => {
       const tools = createFileTools(workspace);
-      const result = await tools.writeFile.execute!({
+      const result = await tools.executors.writeFile({
         path: 'sub/dir/file.txt',
         content: 'nested',
       });
@@ -75,7 +88,7 @@ describe('createFileTools', () => {
 
     it('rejects path traversal', async () => {
       const tools = createFileTools(workspace);
-      const result = await tools.writeFile.execute!({
+      const result = await tools.executors.writeFile({
         path: '../evil.txt',
         content: 'bad',
       });
@@ -91,7 +104,7 @@ describe('createFileTools', () => {
       await mkdir(join(workspace, 'subdir'), { recursive: true });
 
       const tools = createFileTools(workspace);
-      const result = await tools.listFiles.execute!({ path: '.' });
+      const result = await tools.executors.listFiles({ path: '.' });
 
       expect(result).toHaveProperty('files');
       expect(result.files).toContain('a.txt');
@@ -104,75 +117,94 @@ describe('createFileTools', () => {
       await writeFile(join(workspace, 'src/index.ts'), 'code');
 
       const tools = createFileTools(workspace);
-      const result = await tools.listFiles.execute!({ path: 'src' });
+      const result = await tools.executors.listFiles({ path: 'src' });
 
       expect(result.files).toContain('index.ts');
     });
 
     it('returns error for non-existent directory', async () => {
       const tools = createFileTools(workspace);
-      const result = await tools.listFiles.execute!({ path: 'nope' });
+      const result = await tools.executors.listFiles({ path: 'nope' });
 
       expect(result).toHaveProperty('error');
     });
 
     it('rejects path traversal', async () => {
       const tools = createFileTools(workspace);
-      const result = await tools.listFiles.execute!({ path: '..' });
+      const result = await tools.executors.listFiles({ path: '..' });
 
       expect(result).toHaveProperty('error');
     });
   });
 
-  describe('executeCommand', () => {
-    it('executes shell command and returns output', async () => {
-      const tools = createFileTools(workspace);
-      const result = await tools.executeCommand.execute!({ command: 'echo hello' });
-
-      expect(result).toHaveProperty('stdout');
-      expect(result.stdout).toContain('hello');
-      expect(result).toHaveProperty('exitCode');
-      expect(result.exitCode).toBe(0);
-    });
-
-    it('captures stderr on error', async () => {
-      const tools = createFileTools(workspace);
-      const result = await tools.executeCommand.execute!({
-        command: 'echo errormsg >&2; exit 1',
-      });
-
-      expect(result.exitCode).toBe(1);
-      expect(result.stderr).toContain('errormsg');
-    });
-  });
-
-  describe('command whitelist', () => {
-    it('rejects disallowed command', async () => {
-      const tools = createFileTools(workspace);
-      const result = await tools.executeCommand.execute!({ command: 'sudo rm -rf /' });
-
-      expect(result.exitCode).toBe(1);
-      expect(result.stderr).toContain('not in the allowed list');
-    });
-
-    it('rejects empty command', async () => {
-      const tools = createFileTools(workspace);
-      const result = await tools.executeCommand.execute!({ command: '' });
-
-      expect(result.exitCode).toBe(1);
-    });
-  });
-
-  describe('tool structure', () => {
-    it('all tools have required AI SDK fields', () => {
+  describe('tool definitions', () => {
+    it('all tools have required definitions fields', () => {
       const tools = createFileTools(workspace);
 
-      for (const name of ['readFile', 'writeFile', 'listFiles', 'executeCommand']) {
-        expect(tools[name]).toBeDefined();
-        expect(tools[name].description).toBeDefined();
-        expect(tools[name].inputSchema).toBeDefined();
-        expect(tools[name].execute).toBeTypeOf('function');
+      const names = tools.definitions.map((d: any) => d.function.name);
+      expect(names).toContain('readFile');
+      expect(names).toContain('writeFile');
+      expect(names).toContain('listFiles');
+
+      for (const def of tools.definitions) {
+        expect(def.type).toBe('function');
+        expect(def.function.description).toBeDefined();
+        expect(def.function.parameters).toBeDefined();
       }
     });
+  });
+});
+
+describe('createReadWriteTools', () => {
+  let workspace: string;
+
+  beforeAll(async () => {
+    workspace = await mkdtemp(join(tmpdir(), 'rw-test-'));
+  });
+
+  afterAll(async () => {
+    await rm(workspace, { recursive: true, force: true });
+  });
+
+  it('provides readFile and writeFile but not listFiles', () => {
+    const tools = createReadWriteTools(workspace);
+    const names = tools.definitions.map((d: any) => d.function.name);
+    expect(names).toContain('readFile');
+    expect(names).toContain('writeFile');
+    expect(names).not.toContain('listFiles');
+  });
+
+  it('readFile works', async () => {
+    await writeFile(join(workspace, 'test.txt'), 'hello');
+    const tools = createReadWriteTools(workspace);
+    const result = await tools.executors.readFile({ path: 'test.txt' });
+    expect(result).toEqual({ content: 'hello' });
+  });
+
+  it('writeFile works', async () => {
+    const tools = createReadWriteTools(workspace);
+    await tools.executors.writeFile({ path: 'out.txt', content: 'data' });
+    const content = await readFile(join(workspace, 'out.txt'), 'utf-8');
+    expect(content).toBe('data');
+  });
+});
+
+describe('createReadTools', () => {
+  let workspace: string;
+
+  beforeAll(async () => {
+    workspace = await mkdtemp(join(tmpdir(), 'read-test-'));
+  });
+
+  afterAll(async () => {
+    await rm(workspace, { recursive: true, force: true });
+  });
+
+  it('provides readFile and listFiles but not writeFile', () => {
+    const tools = createReadTools(workspace);
+    const names = tools.definitions.map((d: any) => d.function.name);
+    expect(names).toContain('readFile');
+    expect(names).toContain('listFiles');
+    expect(names).not.toContain('writeFile');
   });
 });

@@ -6,45 +6,15 @@ import { Orchestrator } from '../src/orchestrator.js';
 
 vi.mock('../src/llm.js', () => ({
   LLMClient: vi.fn().mockImplementation(function () {
-    this.chat = vi.fn().mockImplementation(async (_system: string, _user: string, tools?: Record<string, any>) => {
-      if (tools?.writeFile?.execute) {
-        await tools.writeFile.execute({ path: 'src/index.ts', content: 'export const add = (a: number, b: number) => a + b;' });
-        await tools.writeFile.execute({ path: 'tests/index.test.ts', content: 'import { describe, it, expect } from "vitest";' });
-        await tools.writeFile.execute({ path: 'reviews/review.md', content: '## 结论\n代码质量良好，通过' });
-      }
-      return { text: 'mock output', toolCalls: [] };
-    });
+    this.chat = vi.fn().mockResolvedValue({ text: 'mock output' });
   }),
 }));
 
-vi.mock('../src/tools.js', async () => {
-  const fs = await import('fs/promises');
-  const pathMod = await import('path');
-  return {
-    createFileTools: vi.fn().mockImplementation((workspace: string) => ({
-      readFile: {
-        execute: async ({ path: filePath }: { path: string }) => {
-          try {
-            const content = await fs.readFile(pathMod.join(workspace, filePath), 'utf-8');
-            return { content };
-          } catch {
-            return { error: 'not found' };
-          }
-        },
-      },
-      writeFile: {
-        execute: async ({ path: filePath, content }: { path: string; content: string }) => {
-          const fullPath = pathMod.join(workspace, filePath);
-          await fs.mkdir(pathMod.dirname(fullPath), { recursive: true });
-          await fs.writeFile(fullPath, content, 'utf-8');
-          return { success: true };
-        },
-      },
-      listFiles: { execute: async () => ({ files: [] }) },
-      executeCommand: { execute: async () => ({ stdout: '', exitCode: 0 }) },
-    })),
-  };
-});
+vi.mock('../src/tools.js', () => ({
+  createFileTools: vi.fn().mockReturnValue({ definitions: [], executors: {} }),
+  createReadWriteTools: vi.fn().mockReturnValue({ definitions: [], executors: {} }),
+  createReadTools: vi.fn().mockReturnValue({ definitions: [], executors: {} }),
+}));
 
 describe('Orchestrator', () => {
   let workspace: string;
@@ -86,7 +56,7 @@ describe('Orchestrator', () => {
     }
   });
 
-  it('run() should copy requirements and execute pipeline', async () => {
+  it('run() should copy requirements', async () => {
     const orch = new Orchestrator({
       workspace,
       apiKey: 'test-key',

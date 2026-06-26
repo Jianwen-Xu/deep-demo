@@ -6,12 +6,13 @@ import { tmpdir } from 'node:os';
 
 vi.mock('../../src/llm.js', () => ({
   LLMClient: vi.fn().mockImplementation(function () {
-    this.chat = vi.fn().mockResolvedValue({ text: 'test code', toolCalls: [] });
+    this.chat = vi.fn().mockResolvedValue({ text: 'test code' });
   }),
 }));
 
 vi.mock('../../src/tools.js', () => ({
-  createFileTools: vi.fn().mockReturnValue({}),
+  createFileTools: vi.fn().mockReturnValue({ definitions: [], executors: {} }),
+  createReadWriteTools: vi.fn().mockReturnValue({ definitions: [], executors: {} }),
 }));
 
 describe('TesterAgent', () => {
@@ -44,7 +45,7 @@ describe('TesterAgent', () => {
     expect(prompt).toContain('http://localhost:5173');
   });
 
-  it('run() reads input and writes output', async () => {
+  it('run() reads input and returns LLM output', async () => {
     await writeFile(join(workspace, 'src', 'index.ts'), 'export const add = (a: number, b: number) => a + b;');
     await mkdir(join(workspace, 'tests'), { recursive: true });
     const agent = new TesterAgent({

@@ -6,12 +6,13 @@ import { tmpdir } from 'node:os';
 
 vi.mock('../../src/llm.js', () => ({
   LLMClient: vi.fn().mockImplementation(function () {
-    this.chat = vi.fn().mockResolvedValue({ text: 'mock code output', toolCalls: [] });
+    this.chat = vi.fn().mockResolvedValue({ text: 'mock code output' });
   }),
 }));
 
 vi.mock('../../src/tools.js', () => ({
-  createFileTools: vi.fn().mockReturnValue({}),
+  createFileTools: vi.fn().mockReturnValue({ definitions: [], executors: {} }),
+  createReadWriteTools: vi.fn().mockReturnValue({ definitions: [], executors: {} }),
 }));
 
 describe('DeveloperAgent', () => {
@@ -44,7 +45,7 @@ describe('DeveloperAgent', () => {
     expect(prompt).toContain('Vite');
   });
 
-  it('run() reads input and falls back to writing output file', async () => {
+  it('run() reads input and returns LLM output', async () => {
     await writeFile(join(workspace, 'req.md'), 'build a calculator');
     const agent = new DeveloperAgent({
       name: 'developer', workspace, apiKey: 'k', baseURL: 'u', model: 'm',

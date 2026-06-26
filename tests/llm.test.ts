@@ -1,8 +1,10 @@
 import { describe, it, expect, vi } from 'vitest';
 import { LLMClient } from '../src/llm.js';
 
-vi.mock('ai', () => ({
-  generateText: vi.fn(),
+vi.mock('openai', () => ({
+  default: vi.fn().mockImplementation(function () {
+    this.chat = { completions: { create: vi.fn() } };
+  }),
 }));
 
 describe('LLMClient', () => {
