@@ -2,6 +2,8 @@ import 'dotenv/config';
 import { Orchestrator } from './orchestrator.js';
 import path from 'path';
 
+const DEFAULT_WORKSPACE = path.resolve('./workspace');
+
 async function main() {
   const args = process.argv.slice(2);
   const requirementsIdx = args.indexOf('--requirements');
@@ -14,7 +16,7 @@ async function main() {
   }
 
   const config = {
-    workspace: process.env.WORKSPACE_DIR || './workspace',
+    workspace: process.env.WORKSPACE_DIR || DEFAULT_WORKSPACE,
     apiKey: process.env.LLM_API_KEY || '',
     baseURL: process.env.LLM_BASE_URL || 'https://api.deepseek.com',
     model: process.env.LLM_MODEL || 'deepseek-v4-flash',

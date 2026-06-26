@@ -20,7 +20,7 @@ export interface OrchestratorConfig {
 }
 
 const sleep = (ms: number) => new Promise(r => setTimeout(r, ms));
-const MAX_RETRIES = 3;
+const MAX_ATTEMPTS = 4;
 const DEV_SERVER_PORT = 5173;
 const DEV_SERVER_TIMEOUT_MS = 15_000;
 const DEV_SERVER_MAX_LIFETIME_MS = 5 * 60 * 1_000;
@@ -82,7 +82,7 @@ export class Orchestrator {
 
     const handler = async () => {
       await this.cleanup();
-      process.exit();
+      process.exitCode = 0;
     };
     process.on('SIGINT', handler);
     process.on('SIGTERM', handler);
@@ -107,8 +107,8 @@ export class Orchestrator {
     let reviewFeedback = '';
     let skipDev = false;
 
-    for (let attempt = 1; attempt <= MAX_RETRIES + 1; attempt++) {
-      this.logger.log('Orchestrator', `Pipeline run (attempt ${attempt}/${MAX_RETRIES + 1})`);
+    for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
+      this.logger.log('Orchestrator', `Pipeline run (attempt ${attempt}/${MAX_ATTEMPTS})`);
 
       this.stopDevServer();
       await sleep(300);
@@ -151,6 +151,10 @@ export class Orchestrator {
       }
       this.logger.end('Orchestrator', 'Installing dependencies');
 
+      this.logger.start('Orchestrator', 'Installing Playwright browsers');
+      await this.runCommand('npx', ['playwright', 'install', 'chromium'], this.config.workspace, 120_000);
+      this.logger.end('Orchestrator', 'Installing Playwright browsers');
+
       this.logger.start('Orchestrator', 'Starting dev server');
       const devUrl = await this.startDevServer();
       if (!devUrl) {
@@ -161,6 +165,7 @@ export class Orchestrator {
       this.logger.log('Orchestrator', `Preview URL: ${devUrl}`);
       this.logger.end('Orchestrator', 'Starting dev server');
 
+      await this.cleanOldTests();
       this.logger.start('Tester', 'Generating e2e tests');
       await this.tester.run('.', 'tests');
       this.logger.end('Tester', 'Generating e2e tests');
@@ -186,7 +191,7 @@ export class Orchestrator {
         'utf-8'
       );
 
-      if (review.includes('## 结论') && review.includes('通过')) {
+      if (/^## 结论\s*\n\s*通过/m.test(review)) {
         this.logger.log('Orchestrator', 'Pipeline completed successfully');
         this.logger.log('Orchestrator', `原型预览地址: ${devUrl}`);
         this.logger.log('Orchestrator', `开发服务器将在 ${DEV_SERVER_MAX_LIFETIME_MS / 1000} 秒后自动停止`);
@@ -200,21 +205,35 @@ export class Orchestrator {
       }
 
       reviewFeedback = review;
-      this.logger.log('Orchestrator', `Review requires changes, retrying (${attempt}/${MAX_RETRIES})...`);
+      this.logger.log('Orchestrator', `Review requires changes, retrying (${attempt}/${MAX_ATTEMPTS})...`);
     }
 
-    this.logger.log('Orchestrator', 'Max retries reached. Pipeline completed with unresolved issues.');
+    this.logger.log('Orchestrator', 'Max attempts reached. Pipeline completed with unresolved issues.');
     process.exitCode = 1;
     this.stopDevServer();
+  }
+
+  private async cleanOldTests(): Promise<void> {
+    const testsDir = path.join(this.config.workspace, 'tests');
+    try {
+      const files = await fs.readdir(testsDir);
+      for (const file of files) {
+        if (file.endsWith('.spec.ts') || file.endsWith('.spec.js')) {
+          await fs.rm(path.join(testsDir, file), { force: true });
+        }
+      }
+    } catch {
+      // tests dir may not exist yet, that's fine
+    }
   }
 
   private async startDevServer(): Promise<string | null> {
     return new Promise((resolve) => {
       const cwd = this.config.workspace;
-      const child = spawn('npx', ['vite', '--port', String(DEV_SERVER_PORT)], {
+      const viteBin = path.resolve(cwd, 'node_modules', '.bin', 'vite');
+      const child = spawn(viteBin, ['--port', String(DEV_SERVER_PORT)], {
         cwd,
         stdio: ['ignore', 'pipe', 'pipe'],
-        shell: true,
       });
 
       this.devServer = child;

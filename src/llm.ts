@@ -1,6 +1,12 @@
 import OpenAI from 'openai';
 import { Logger } from './logger.js';
-import type { ToolSet } from './tools.js';
+import type { ToolSet, ToolDefinition } from './tools.js';
+import type {
+  ChatCompletionMessageParam,
+  ChatCompletionMessageFunctionToolCall,
+  ChatCompletionTool,
+  ChatCompletion,
+} from 'openai/resources/chat/completions';
 
 export interface LLMConfig {
   apiKey: string;
@@ -18,6 +24,14 @@ export interface ChatOptions {
 const MAX_RETRIES = 3;
 const MAX_STEPS = 10;
 const STEP_TIMEOUT_MS = 120_000;
+
+function messageContent(msg: ChatCompletionMessageParam): string {
+  if (typeof msg.content === 'string') return msg.content;
+  if (Array.isArray(msg.content)) {
+    return msg.content.map(p => 'text' in p ? p.text : '').join('');
+  }
+  return '';
+}
 
 export class LLMClient {
   private client: OpenAI;
@@ -40,11 +54,11 @@ export class LLMClient {
   ): Promise<{ text: string }> {
     const name = options?.agentName || 'LLM';
     const verbose = options?.verbose || false;
-    const messages: any[] = [
+    const messages: ChatCompletionMessageParam[] = [
       { role: 'system', content: systemPrompt },
       { role: 'user', content: userMessage },
     ];
-    const toolDefs = tools?.definitions;
+    const toolDefs = tools?.definitions?.map(toChatCompletionTool);
     const executors = tools?.executors;
     const stepStart = Date.now();
 
@@ -58,16 +72,17 @@ export class LLMClient {
       if (!message.tool_calls?.length) {
         const totalElapsed = Date.now() - stepStart;
         this.logger.sub(name, `Done in ${step} step${step > 1 ? 's' : ''} (${totalElapsed}ms)`);
-        return { text: message.content || '' };
+        return { text: messageContent(message) };
       }
 
-      const names = message.tool_calls.map((tc: any) => tc.function.name).join(', ');
-      this.logger.sub(name, `Step ${step}/${MAX_STEPS} (${apiElapsed}ms) → ${message.tool_calls.length} ${names}`);
+      const toolCalls = message.tool_calls as unknown as ChatCompletionMessageFunctionToolCall[];
+      const names = toolCalls.map(tc => tc.function.name).join(', ');
+      this.logger.sub(name, `Step ${step}/${MAX_STEPS} (${apiElapsed}ms) → ${toolCalls.length} ${names}`);
 
       if (verbose) {
-        for (const tc of message.tool_calls) {
+        for (const tc of toolCalls) {
           try {
-            const args = JSON.parse(tc.function.arguments);
+            const args = JSON.parse(tc.function.arguments) as Record<string, unknown>;
             const summary = Object.entries(args)
               .map(([k, v]) => {
                 const s = String(v);
@@ -81,7 +96,7 @@ export class LLMClient {
         }
       }
 
-      for (const toolCall of message.tool_calls) {
+      for (const toolCall of toolCalls) {
         const fn = toolCall.function;
         const exec = executors?.[fn.name];
         if (!exec) {
@@ -92,9 +107,9 @@ export class LLMClient {
           });
           continue;
         }
-        let args: Record<string, any>;
+        let args: Record<string, unknown>;
         try {
-          args = JSON.parse(fn.arguments);
+          args = JSON.parse(fn.arguments) as Record<string, unknown>;
         } catch {
           messages.push({
             role: 'tool',
@@ -119,15 +134,19 @@ export class LLMClient {
 
     const last = [...messages].reverse().find(m => m.role === 'assistant');
     this.logger.sub(name, `Max steps (${MAX_STEPS}) reached, returning last response`);
-    return { text: last?.content || '' };
+    return { text: last ? messageContent(last) : '' };
   }
 
-  private async callAPI(messages: any[], tools?: any[], options?: ChatOptions): Promise<any> {
+  private async callAPI(
+    messages: ChatCompletionMessageParam[],
+    tools?: ChatCompletionTool[],
+    options?: ChatOptions
+  ): Promise<ChatCompletion> {
     let lastError: Error | null = null;
 
     for (let attempt = 0; attempt < MAX_RETRIES; attempt++) {
       try {
-        const body: Record<string, any> = {
+        const body: Record<string, unknown> = {
           model: this.model,
           messages,
           tools: tools?.length ? tools : undefined,
@@ -151,9 +170,9 @@ export class LLMClient {
           throw new Error('API returned 0 choices');
         }
         return response;
-      } catch (err: any) {
-        lastError = err;
-        const msg = err.message || String(err);
+      } catch (err: unknown) {
+        lastError = err instanceof Error ? err : new Error(String(err));
+        const msg = lastError.message;
         const delay = Math.min(1000 * Math.pow(2, attempt), 10000);
         this.logger.sub(options?.agentName || 'LLM', `API call failed (attempt ${attempt + 1}/${MAX_RETRIES}), retrying in ${delay}ms: ${msg}`);
         if (attempt < MAX_RETRIES - 1) {
@@ -164,4 +183,15 @@ export class LLMClient {
 
     throw lastError;
   }
+}
+
+function toChatCompletionTool(def: ToolDefinition): ChatCompletionTool {
+  return {
+    type: 'function',
+    function: {
+      name: def.function.name,
+      description: def.function.description,
+      parameters: def.function.parameters as Record<string, unknown>,
+    },
+  };
 }
