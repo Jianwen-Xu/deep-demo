@@ -54,4 +54,29 @@ describe('TesterAgent', () => {
     const result = await agent.run('src/index.ts', 'tests/index.test.ts');
     expect(result).toBe('test code');
   });
+
+  it('injects diagnostic feedback into the input message', async () => {
+    const agent = new TesterAgent({
+      name: 'tester', workspace, apiKey: 'k', baseURL: 'u', model: 'm',
+    });
+    agent.setDiagnosticFeedback('选择器 .card 匹配到了多个元素');
+
+    await agent.run('.', 'tests');
+
+    const chat = (agent as any).llm.chat as ReturnType<typeof vi.fn>;
+    const userMessage = chat.mock.calls[0][1] as string;
+    expect(userMessage).toContain('选择器 .card 匹配到了多个元素');
+  });
+
+  it('leaves the input message untouched without feedback', async () => {
+    const agent = new TesterAgent({
+      name: 'tester', workspace, apiKey: 'k', baseURL: 'u', model: 'm',
+    });
+
+    await agent.run('.', 'tests');
+
+    const chat = (agent as any).llm.chat as ReturnType<typeof vi.fn>;
+    const userMessage = chat.mock.calls[0][1] as string;
+    expect(userMessage).not.toContain('上一轮端到端测试失败');
+  });
 });

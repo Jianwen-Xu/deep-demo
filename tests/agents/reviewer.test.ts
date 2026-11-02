@@ -34,7 +34,7 @@ describe('ReviewerAgent', () => {
     expect(agent).toBeDefined();
   });
 
-  it('system prompt mentions review dimensions and writeFile', () => {
+  it('system prompt mentions review dimensions and both outputs', () => {
     const agent = new ReviewerAgent({
       name: 'reviewer', workspace, apiKey: 'k', baseURL: 'u', model: 'm',
     });
@@ -42,9 +42,9 @@ describe('ReviewerAgent', () => {
     expect(prompt).toContain('代码');
     expect(prompt).toContain('writeFile');
     expect(prompt).toContain('readFile');
-    expect(prompt).toContain('## 结论');
-    expect(prompt).toContain('通过');
-    expect(prompt).toContain('需修改');
+    expect(prompt).toContain('reports/reviewer.json');
+    expect(prompt).toContain('needs_changes');
+    expect(prompt).toContain('blocked');
   });
 
   it('run() reads input and writes output', async () => {

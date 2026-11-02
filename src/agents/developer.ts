@@ -47,6 +47,14 @@ export class DeveloperAgent extends Agent {
 要求：
 - 使用 writeFile 工具一次性并行写入所有文件
 - 生成美观、可交互的原型，注意视觉设计和用户体验
-- 项目要能够通过 npm install && npm run dev 直接运行`;
+- 项目要能够通过 npm install && npm run dev 直接运行
+
+汇报（最后一步，先写完所有文件再写）：
+- 写入 "reports/developer.json"，按汇报契约输出。
+- ready：8 个文件齐全，package.json 的依赖和脚本正确。
+- needs_changes：还有明确的遗留问题（例如某个文件暂时占位），feedback 写清下一步要补什么。
+- blocked：需求自相矛盾，或必须由人决定业务规则（例如数据字段含义）才能继续，此时 question 必须是一句话能回答的问题。
+- failed：无法产出可用项目（例如工具报错）。
+- 需求没写清的细节请自行做合理选择，并把选择写进 summary，不要因此 blocked。`;
   }
 }

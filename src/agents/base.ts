@@ -1,5 +1,6 @@
 import { LLMClient } from '../llm.js';
 import { createFileTools } from '../tools.js';
+import { reportContract } from '../report.js';
 import type { AgentConfig } from '../types.js';
 import type { ToolSet } from '../tools.js';
 import type { ChatOptions } from '../llm.js';
@@ -58,7 +59,8 @@ export abstract class Agent {
       verbose: this.verbose,
     };
     const { text } = await this.llm.chat(
-      sharedPrefix + this.getSystemPrompt(inputPath, outputPath),
+      // 公共前缀保持三端一致以命中 KV cache；契约只在尾部追加
+      sharedPrefix + this.getSystemPrompt(inputPath, outputPath) + '\n\n' + reportContract(this.name),
       await this.getInputMessage(inputPath),
       this.tools,
       chatOptions

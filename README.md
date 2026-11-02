@@ -33,8 +33,9 @@ User Requirements (requirements.md)
 │  │   ┌──────────────────────┐                    │   │
 │  │   │ LLM Diagnose Layer   │ ◄── test failures │   │
 │  │   └──────────────────────┘                    │   │
-│  │         │ retry_dev / retry_tester / abort    │   │
+│  │         │ retry_dev / retry_tester / blocked  │   │
 │  └──────────────────────────────────────────────┘   │
+│  Stage: queued → working → { done | blocked | failed } │
 └─────────────────────────────────────────────────────┘
 ```
 
@@ -45,7 +46,10 @@ User Requirements (requirements.md)
 | Developer | `enabled` (medium) | `readFile` + `writeFile` | 构建完整 React+Vite 原型（8 个必需文件） |
 | Tester | `disabled` | `readFile` + `writeFile` | 根据源码生成 Playwright E2E 测试 |
 | Reviewer | `enabled` (medium) | `readFile` + `writeFile` + `listFiles` | 审查代码质量、UI/UX、测试覆盖 |
-| Orchestrator (diagnose) | `disabled` | context-only | 分析测试失败原因，决策 retry/abort |
+| Orchestrator (diagnose) | `disabled` | context-only | 分析测试失败原因，决策 retry/blocked |
+
+Each agent writes a machine-readable report to `reports/<agent>.json` before finishing; the pipeline decides on `status`, never on prose.
+每个 Agent 结束前把结构化汇报写到 `reports/<agent>.json`，流水线只看 `status`，不解析自然语言。
 
 Each agent's `chat()` call passes its own thinking parameters. DeepSeek decides whether to show the reasoning process based on the configuration.
 
@@ -55,7 +59,32 @@ Test failures trigger an independent LLM diagnosis:
 
 - `retry_dev` — code issue, re-run Developer / 代码问题，重跑 Developer
 - `retry_tester` — test issue, skip Developer, re-run Tester / 测试问题，跳过 Developer 直接重跑 Tester
-- `abort` — unrecoverable / 不可恢复，终止
+- `blocked` — needs a human decision or credential / 需要人的决策或凭据，立即终止
+
+### Stages & Reports / 阶段与汇报
+
+任务状态只有五种（`src/stage.ts`），每次迁移都记录在日志里：
+
+```
+queued → working → { done | blocked | failed }
+```
+
+每个 Agent 结束前写 `reports/<agent>.json`（契约见 `src/report.ts` 的 `reportContract()`）：
+
+| status | 含义 | 流水线动作 |
+|---|---|---|
+| `ready` | 本轮达标 | 进入下一阶段（Reviewer 报 `ready` 即 `done`） |
+| `needs_changes` | 有明确问题，同角色可修 | 把 `feedback` 落成下一轮输入 |
+| `blocked` | 只有人能决定 | 立即终止，写 `needs-human.md`，退出码 `2` |
+| `failed` | 本轮产不出可用结果 | 重试，消耗一次 attempt |
+
+- 解析不出汇报 → 按 `failed` 处理，绝不默认成功。
+- 旧版 markdown `## 结论` 仅作兜底，命中时打印告警（便于发现没按契约输出的模型）。
+- 每轮开始前清掉上一轮的汇报文件，避免旧结论污染新决策。
+
+退出码：`0` 完成 / `1` 达到最大重试次数 / `2` 需要人工介入（先看 `needs-human.md`）。
+
+后续演进（持久化、目录隔离、并发、Outbox、人的回路）见 [docs/roadmap.md](docs/roadmap.md)。
 
 ### Tool Isolation / 工具隔离
 
@@ -110,15 +139,25 @@ src/
 │   └── reviewer.ts       # Code reviewer / 代码审查 Agent
 ├── llm.ts                # OpenAI SDK wrapper (tool loop, timeout, retry, thinking)
 ├── tools.ts              # Tool factories / 工具工厂
+├── report.ts             # Report contract + tolerant JSON parsing / 汇报契约与解析
+├── stage.ts              # Explicit stage machine / 显式阶段机
 ├── logger.ts             # Structured logger / 结构化日志
 └── types.ts              # Shared types / 共享类型
 ```
 
 ### Core Modules / 核心模块
 
-**`orchestrator.ts`** — Pipeline controller. Maintains a `skipDev` flag to decide whether to skip the Developer phase. `diagnoseTestFailure()` walks the workspace file tree as prompt context and calls an independent LLM for JSON diagnosis results.
+**`orchestrator.ts`** — Pipeline controller. Drives the stage machine and decides on each Agent's `Report.status`; `blocked` short-circuits the whole run. Maintains a `skipDev` flag to decide whether to skip the Developer phase. `diagnoseTestFailure()` walks the workspace file tree as prompt context and calls an independent LLM for JSON diagnosis results.
 
-管道控制器。维护 `skipDev` 标志位决定下一轮是否跳过 Developer。`diagnoseTestFailure()` 递归遍历工作区文件树作为 prompt 上下文，调用独立 LLM 获取 JSON 诊断结果。
+管道控制器。驱动阶段机，只依据各 Agent 的 `Report.status` 决策；`blocked` 直接短路整条流水线。维护 `skipDev` 标志位决定下一轮是否跳过 Developer。`diagnoseTestFailure()` 递归遍历工作区文件树作为 prompt 上下文，调用独立 LLM 获取 JSON 诊断结果。
+
+**`report.ts`** — The report contract and its parser. `reportContract()` is appended to every Agent's system prompt; `parseReport()` tries fenced JSON, then any balanced JSON object containing `"status"`, then the legacy markdown conclusion, and returns `null` when nothing parses so the caller can fail closed.
+
+汇报契约与解析器。`reportContract()` 追加到每个 Agent 的 system prompt；`parseReport()` 依次尝试 fenced JSON、文本中带 `"status"` 的平衡 JSON、旧版 markdown 结论，全部失败返回 `null`，由调用方按失败处理（fail closed）。
+
+**`stage.ts`** — `StageTracker` holds the five stages and an append-only transition log. It is the structure Step 2 will persist verbatim, so the pipeline needs no changes when persistence lands.
+
+阶段机。`StageTracker` 保存五种阶段与只追加的迁移记录；第二阶段会原样持久化该结构，流水线无需改动。
 
 **`llm.ts`** — LLM client built on the official `openai` SDK. The `chat()` method implements a manual tool call loop (max 10 steps), supports `thinking` / `reasoning_effort` passthrough. 120s timeout, up to 3 retries (exponential backoff).
 
@@ -164,9 +203,22 @@ Below is the run log for `a simple dashboard` (with `--verbose`):
 [12:26:26.799] [Orchestrator] Running e2e tests...
 [12:26:26.801] [Orchestrator] Tests failed (8/9 passed)
 [12:26:29.010] [Orchestrator] Diagnosing test failure...
-[12:26:29.010] [Orchestrator] Pipeline run (attempt 2/4)
+[12:26:29.318] [Orchestrator] Pipeline run (attempt 2/4)
 [12:26:29.318] [Developer   ] Fixing prototype from review feedback...
 ...
+[12:28:06.910] [reviewer    ] 汇报(json): [ready] 原型功能完整，交互流畅
 [12:28:07.338] [Orchestrator] Pipeline completed successfully
+[12:28:07.338] [Orchestrator] 阶段: 执行中 / working → 完成 / done · Reviewer: 原型功能完整，交互流畅
 [12:28:07.338] [Orchestrator] Preview URL: http://localhost:5173/
 ```
+
+If an Agent blocks instead, the run stops immediately and prints the question:
+
+```
+[12:26:29.010] [Orchestrator] 阶段: 执行中 / working → 等待人工 / blocked · Reviewer: 需要确认指标数量？
+[12:26:29.010] [Orchestrator] ⏸  需要人工介入（Reviewer）
+[12:26:29.010] [Orchestrator]     仪表盘需要展示哪几个指标？
+[12:26:29.010] [Orchestrator]     详情: ./workspace/needs-human.md
+```
+
+Exit code is `2` in that case; answer the question and re-run.

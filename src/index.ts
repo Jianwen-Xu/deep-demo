@@ -37,10 +37,23 @@ async function main() {
   console.log('');
 
   await orch.init();
-  await orch.run(path.resolve(requirementsFile));
+  const outcome = await orch.run(path.resolve(requirementsFile));
 
   console.log('');
-  console.log('  ✅ 完成！请查看工作目录中的输出。');
+  if (outcome === 'done') {
+    console.log('  ✅ 完成！请查看工作目录中的输出。');
+    process.exitCode = 0;
+  } else if (outcome === 'blocked') {
+    const state = orch.getState();
+    const last = state.changes[state.changes.length - 1];
+    console.log('  ⏸  已暂停：需要人工回答一个问题。');
+    console.log(`     ${last?.reason ?? ''}`);
+    console.log('     详情见工作目录下的 needs-human.md；回答后重新运行即可。');
+    process.exitCode = 2;
+  } else {
+    console.log('  ❌ 未完成：达到最大重试次数。请查看 reviews/ 与 reports/ 后重跑。');
+    process.exitCode = 1;
+  }
   console.log('');
 }
 
